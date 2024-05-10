@@ -1,10 +1,8 @@
 services:
-  web1:
+  web:
     image: odoo:17.0
     depends_on:
       - db
-#    ports:
-#      - "8069:8069"
     volumes:
       - odoo-web-data:/var/lib/odoo
       - ./config:/etc/odoo
@@ -13,21 +11,17 @@ services:
       - PASSWORD_FILE=/run/secrets/postgresql_password
     secrets:
       - postgresql_password
-
-  web2:
-    image: odoo:17.0
-    depends_on:
-      - db
-#    ports:
-#      - "8070:8069"
-    volumes:
-      - odoo-web-data:/var/lib/odoo
-      - ./config:/etc/odoo
-      - ../../src/odoo17e/odoo/addons:/mnt/extra-addons/odoo17e
-    environment:
-      - PASSWORD_FILE=/run/secrets/postgresql_password
-    secrets:
-      - postgresql_password
+    deploy:
+      replicas: 1  # Initial number of container instances
+      resources:
+        limits:
+          cpus: '0.8' # 80% of CPU
+          memory: 512M # 512MB of RAM
+    healthcheck:
+        test: [ "CMD", "curl", "-f", "http://localhost" ]
+        interval: 10s
+        timeout: 5s
+        retries: 3
 
   db:
     image: postgres:15
@@ -40,6 +34,9 @@ services:
       - odoo-db-data:/var/lib/postgresql/data/pgdata
     secrets:
       - postgresql_password
+    deploy:
+      replicas: 1  # For databases, you typically don't need more than one instance.
+    restart: always
 
   nginx:
     image: nginx:latest
@@ -49,8 +46,24 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - web1
-      - web2
+      - web
+    deploy:
+      replicas: 1  # For databases, you typically don't need more than one instance.
+    restart: always
+
+#  scaler:
+#    image: alpine:latest
+#    deploy:
+#      mode: global
+#      replicas: 1  # For databases, you typically don't need more than one instance.
+#    command: ["sh", "-C", "/var/run/monitor.sh"]
+#    volumes:
+#      - ./monitor.sh:/var/run/monitor.sh:ro  # Adjust the path here
+#    environment:
+#      - SERVICE_NAME=web
+#      - CPU_THRESHOLD=80
+#      - MEMORY_THRESHOLD=80
+#    restart: always
 
 volumes:
   odoo-web-data:
